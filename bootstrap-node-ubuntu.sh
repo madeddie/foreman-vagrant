@@ -2,45 +2,33 @@
 
 # Run on VM to bootstrap Puppet Agent Ubuntu-based Linux nodes
 # Gary A. Stafford - 02/27/2015
+# Downgrade Puppet on box from 4.x to 3.x for Foreman 1.9
+# http://theforeman.org/manuals/1.9/index.html#3.1.2PuppetCompatibility
 
-#!/bin/sh
-
-# Run on VM to bootstrap Puppet Agent nodes
-
-if ps aux | grep "puppet agent" | grep -v grep 2> /dev/null
-then
-    echo "Puppet Agent is already installed. Moving on..."
-else
-    sudo apt-get install -yq puppet
+if puppet agent --version | grep "^3."; then
+  echo "Puppet Agent already installed, exiting"
+  exit
 fi
 
-if cat /etc/crontab | grep puppet 2> /dev/null
-then
-    echo "Puppet Agent is already configured. Exiting..."
-else
-    # Update system first
-    sudo apt-get update -yq && sudo apt-get upgrade -yq
+echo "Installing Puppet Agent..."
 
-    # Add puppet agent cron job
-    sudo puppet resource cron puppet-agent ensure=present user=root minute=30 \
-        command='/usr/bin/puppet agent --onetime --no-daemonize --splay'
+wget https://apt.puppetlabs.com/puppetlabs-release-trusty.deb && \
+sudo dpkg -i puppetlabs-release-trusty.deb && \
+sudo apt-get update && \
+sudo apt-get install -y puppet
 
-    sudo puppet resource service puppet ensure=running enable=true
+sudo sed -i 's/START=no/START=yes/' /etc/default/puppet
 
-    # Add agent section to /etc/puppet/puppet.conf (sets run interval to 120 seconds)
-    echo "" | sudo tee --append /etc/puppet/puppet.conf 2> /dev/null && \
-    echo "[agent]" | sudo tee --append /etc/puppet/puppet.conf 2> /dev/null && \
-    echo "server=theforeman.example.com" | sudo tee --append /etc/puppet/puppet.conf 2> /dev/null && \
-    echo "runinterval=30m" | sudo tee --append /etc/puppet/puppet.conf 2> /dev/null
+# Add agent section to /etc/puppet/puppet.conf (set run interval to 120s for testing)
+echo "[agent]" | sudo tee --append /etc/puppet/puppet.conf 2> /dev/null && \
+echo "server=theforeman.example.com" | sudo tee --append /etc/puppet/puppet.conf 2> /dev/null && \
+echo "runinterval=120s" | sudo tee --append /etc/puppet/puppet.conf 2> /dev/null
 
-    sudo service puppet stop
-    sudo service puppet start
+sudo service puppet stop
+sudo puppet resource service puppet ensure=running enable=true
+sudo puppet agent --enable
 
-    sudo puppet resource service puppet ensure=running enable=true
-    sudo puppet agent --enable
-
-    # Unless you have Foreman autosign certs, each agent will hang on this step until you manually
-    # sign each cert in the Foreman UI (Infrastrucutre -> Smart Proxies -> Certificates -> Sign)
-    # alternative, run manually on each host, after provisioning is complete...
-    #sudo puppet agent --test --waitforcert=60
-fi
+# Unless you have Foreman autosign certs, each agent will hang on this step until you manually
+# sign each cert in the Foreman UI (Infrastrucutre -> Smart Proxies -> Certificates -> Sign)
+# Aternative, run manually on each host, after provisioning is complete...
+#sudo puppet agent --test --waitforcert=60

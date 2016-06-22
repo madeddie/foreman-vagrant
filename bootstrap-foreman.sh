@@ -1,55 +1,39 @@
 #!/bin/sh
 
-# Run on VM to bootstrap Foreman server
+# Run on VM to bootstrap the Foreman server
 # Gary A. Stafford - 01/15/2015
+# Modified - 08/19/2015
+# Downgrade Puppet on box from 4.x to 3.x for Foreman 1.9 
+# http://theforeman.org/manuals/1.9/index.html#3.1.2PuppetCompatibility
 
-if ps aux | grep "/usr/share/foreman" | grep -v grep 2> /dev/null
-then
-    echo "Foreman appears to all already be installed. Exiting..."
-else
-
-    # Update system first
-    sudo yum update -y
-
-    # Update iptables
-
-    # HTTP/HTTPS
-    sudo /sbin/iptables -A INPUT -m state --state NEW -m tcp -p tcp --dport 80 -j ACCEPT
-    sudo /sbin/iptables -A INPUT -m state --state NEW -m tcp -p tcp --dport 443 -j ACCEPT
-
-    # TFTP
-    sudo /sbin/iptables -A INPUT -i eth0 -m state --state NEW -m tcp -p tcp --dport 69 -j ACCEPT
-    sudo /sbin/iptables -A INPUT -i eth0 -m state --state NEW -m udp -p udp --dport 69 -j ACCEPT
-
-    # DHCP
-    sudo /sbin/iptables -A INPUT -i eth0 -m state --state NEW -m udp -p udp --dport 67 -j ACCEPT
-    sudo /sbin/iptables -A INPUT -i eth0 -m state --state NEW -m udp -p udp --dport 68 -j ACCEPT
-
-    # DNS
-    sudo /sbin/iptables -A INPUT -i eth0 -m state --state NEW -m udp -p udp --dport 53 -j ACCEPT
-    sudo /sbin/iptables -A INPUT -i eth0 -m state --state NEW -m tcp -p tcp --dport 53 -j ACCEPT
-
-    # Foreman Proxy -- docs say REST, so this should only be TCP
-    sudo /sbin/iptables -A INPUT -m state --state NEW -m tcp -p tcp --dport 8443 -j ACCEPT
-
-    # Install Foreman for CentOS 6
-    sudo rpm -ivh http://yum.puppetlabs.com/puppetlabs-release-el-6.noarch.rpm && \
-    sudo yum -y install epel-release http://yum.theforeman.org/releases/1.8/el6/x86_64/foreman-release.rpm && \
-    sudo yum -y install foreman-installer && \
-    sudo foreman-installer
-
-    # First run the Puppet agent on the Foreman host which will send the first Puppet report to Foreman,
-    # automatically creating the host in Foreman's database
-    sudo puppet agent --test --waitforcert=60
-
-    # Install some optional puppet modules on Foreman server to get started...
-    sudo puppet module install -i /etc/puppet/environments/production/modules puppetlabs-ntp
-    sudo puppet module install -i /etc/puppet/environments/production/modules puppetlabs-git
-    sudo puppet module install -i /etc/puppet/environments/production/modules puppetlabs-vcsrepo
-    sudo puppet module install -i /etc/puppet/environments/production/modules garethr-docker
-    sudo puppet module install -i /etc/puppet/environments/production/modules garystafford-fig
-    sudo puppet module install -i /etc/puppet/environments/production/modules jfryman-nginx
-    sudo puppet module install -i /etc/puppet/environments/production/modules puppetlabs-haproxy
-    sudo puppet module install -i /etc/puppet/environments/production/modules puppetlabs-apache
-    sudo puppet module install -i /etc/puppet/environments/production/modules puppetlabs-java
+if puppet agent --version | grep "^3."; then
+  echo "Puppet Agent already installed, exiting"
+  exit
 fi
+
+echo "Installing Puppet Agent and Foreman..."
+
+wget https://apt.puppetlabs.com/puppetlabs-release-trusty.deb && \
+sudo dpkg -i puppetlabs-release-trusty.deb && \
+echo "deb http://deb.theforeman.org/ trusty 1.9" | sudo tee /etc/apt/sources.list.d/foreman.list
+echo "deb http://deb.theforeman.org/ plugins 1.9" | sudo tee -a /etc/apt/sources.list.d/foreman.list
+wget -q http://deb.theforeman.org/pubkey.gpg -O- | sudo apt-key add -
+sudo apt-get update
+sudo apt-get install -y puppet foreman-installer
+sudo sed -i 's/START=no/START=yes/' /etc/default/puppet
+sudo foreman-installer --foreman-admin-password admin
+
+# First run the Puppet agent on the Foreman host which will send the first Puppet report to Foreman,
+# automatically creating the host in Foreman's database
+sudo puppet agent --test --waitforcert=60
+
+# Optional, install some optional puppet modules on Foreman server to get started...
+sudo puppet module install -i /etc/puppet/environments/production/modules puppetlabs-ntp
+sudo puppet module install -i /etc/puppet/environments/production/modules puppetlabs-git
+sudo puppet module install -i /etc/puppet/environments/production/modules puppetlabs-vcsrepo
+sudo puppet module install -i /etc/puppet/environments/production/modules jfryman-nginx
+sudo puppet module install -i /etc/puppet/environments/production/modules puppetlabs-postgresql
+#sudo puppet module install -i /etc/puppet/environments/production/modules garethr-docker
+#sudo puppet module install -i /etc/puppet/environments/production/modules puppetlabs-haproxy
+#sudo puppet module install -i /etc/puppet/environments/production/modules puppetlabs-apache
+#sudo puppet module install -i /etc/puppet/environments/production/modules puppetlabs-java

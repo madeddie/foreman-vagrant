@@ -4,6 +4,7 @@
 # Builds single Foreman server and
 # multiple Puppet Agent Nodes using JSON config file
 # Gary A. Stafford - 01/15/2015
+# Modified - 08/19/2015
 
 # read vm and chef configurations from JSON files
 nodes_config = (JSON.parse(File.read("nodes.json")))['nodes']
@@ -15,9 +16,10 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     node_name   = node[0] # name of node
     node_values = node[1] # content of node
 
-    config.vbguest.auto_update = true
+    config.vbguest.auto_update = false
     config.vbguest.iso_path = "http://download.virtualbox.org/virtualbox/%{version}/VBoxGuestAdditions_%{version}.iso"
-    config.vm.box = 'puppetlabs/centos-6.6-64-puppet' #node_values[':box']
+    
+    config.vm.box = node_values[':box']
 
     config.hostmanager.enabled = true
     config.hostmanager.manage_host = true
@@ -33,6 +35,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
           guest: port[':guest'],
           id:    port[':id']
       end
+
+      config.vm.synced_folder "../../", "/srv/devel"
 
       config.vm.hostname = node_name
       config.vm.network :private_network, ip: node_values[':ip']
