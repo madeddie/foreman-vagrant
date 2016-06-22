@@ -6,10 +6,7 @@
 # Downgrade Puppet on box from 4.x to 3.x for Foreman 1.9 
 # http://theforeman.org/manuals/1.9/index.html#3.1.2PuppetCompatibility
 
-# Update system first
-sudo yum update -y
-
-if puppet agent --version | grep "3." | grep -v grep 2> /dev/null
+if puppet agent --version | grep "^3."
 then
     echo "Puppet Agent $(puppet agent --version) is already installed. Moving on..."
 else

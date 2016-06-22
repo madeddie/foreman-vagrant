@@ -16,7 +16,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     node_name   = node[0] # name of node
     node_values = node[1] # content of node
 
-    config.vbguest.auto_update = true
+    config.vbguest.auto_update = false
     config.vbguest.iso_path = "http://download.virtualbox.org/virtualbox/%{version}/VBoxGuestAdditions_%{version}.iso"
     
     config.vm.box = node_values[':box']
@@ -35,6 +35,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
           guest: port[':guest'],
           id:    port[':id']
       end
+
+      config.vm.synced_folder "../../", "/srv/devel"
 
       config.vm.hostname = node_name
       config.vm.network :private_network, ip: node_values[':ip']
